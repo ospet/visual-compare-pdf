@@ -30,3 +30,89 @@
 *.exe
 *.out
 *.app
+
+# Build directories
+build/
+out/
+debug/
+release/
+x64/
+Win32/
+[Bb]in/
+[Oo]bj/
+
+# CMake generated files
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+_deps/
+
+# IDE specific files
+## Visual Studio
+.vs/
+*.sln
+*.vcxproj
+*.vcxproj.filters
+*.vcxproj.user
+*.suo
+*.user
+*.userosscache
+*.sdf
+*.opensdf
+*.VC.db
+*.VC.opendb
+ipch/
+
+## VSCode
+.vscode/
+*.code-workspace
+
+## JetBrains IDEs (CLion, etc)
+.idea/
+cmake-build-*/
+*.iml
+*.iws
+*.ipr
+
+# Compiled files
+*.o
+*.obj
+*.exe
+*.dll
+*.so
+*.dylib
+*.lib
+*.a
+*.pdb
+*.ilk
+*.exp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*~
+
+# Logs and databases
+*.log
+*.sqlite
+*.sqlite3
+
+# Dependencies
+vcpkg_installed/
+packages/
+vendor/
+
+# PDF test files and output
+diff_output/
