@@ -15,36 +15,81 @@ set(CMAKE_TOOLCHAIN_FILE "${CMAKE_CURRENT_SOURCE_DIR}/vcpkg/scripts/buildsystems
 # Specify that we want 64-bit builds
 set(VCPKG_TARGET_TRIPLET "x64-windows" CACHE STRING "")
 
-# Find required packages
-find_package(unofficial-poppler CONFIG REQUIRED)
-find_package(PNG REQUIRED)
+if(EMSCRIPTEN)
+    # Emscripten-specific settings
+    set(CMAKE_EXECUTABLE_SUFFIX ".js")
+    
+    # Create the WebAssembly library
+    add_executable(pdf_compare_wasm
+        src/bindings.cpp
+    )
+    
+    target_include_directories(pdf_compare_wasm
+        PRIVATE
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    
+    # Set Emscripten flags as a single string
+    set(EM_FLAGS
+        "-s WASM=1"
+        "-s ALLOW_MEMORY_GROWTH=1"
+        "-s MODULARIZE=1"
+        "-s EXPORT_NAME='createPDFCompare'"
+        "-s EXPORTED_RUNTIME_METHODS=['FS']"
+        "-s NO_EXIT_RUNTIME=1"
+        "-s USE_ZLIB=1"
+        "-s USE_LIBPNG=1"
+        "-s FORCE_FILESYSTEM=1"
+        "--bind"
+    )
+    
+    # Join the flags with spaces
+    string(JOIN " " EM_LINK_FLAGS ${EM_FLAGS})
+    
+    # Set the flags for both compilation and linking
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${EM_LINK_FLAGS}")
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${EM_LINK_FLAGS}")
 
-# Create library
-add_library(pdf_compare STATIC
-    src/pdf_compare.cpp
-)
+    # Since we can't use Poppler in WASM easily, let's use PDF.js
+    target_compile_definitions(pdf_compare_wasm PRIVATE
+        USE_PDFJS=1
+    )
 
-target_include_directories(pdf_compare
-    PUBLIC
-        ${CMAKE_CURRENT_SOURCE_DIR}/include
-)
+else()
+    # Native build configuration (unchanged)
+    # Find required packages
+    find_package(unofficial-poppler CONFIG REQUIRED)
+    find_package(PNG REQUIRED)
 
-target_link_libraries(pdf_compare
-    PRIVATE
-        ${VCPKG_INSTALLED_DIR}/lib/poppler.lib
-        ${VCPKG_INSTALLED_DIR}/lib/poppler-cpp.lib
-        PNG::PNG
-)
+    add_library(pdf_compare STATIC
+        src/pdf_compare.cpp
+    )
+    
+    target_include_directories(pdf_compare
+        PUBLIC
+            ${CMAKE_CURRENT_SOURCE_DIR}/include
+    )
+    
+    target_link_libraries(pdf_compare
+        PRIVATE
+            ${VCPKG_INSTALLED_DIR}/lib/poppler.lib
+            ${VCPKG_INSTALLED_DIR}/lib/poppler-cpp.lib
+            PNG::PNG
+    )
 
-# Define export macro
-target_compile_definitions(pdf_compare PRIVATE PDF_COMPARE_EXPORTS)
+    # Create executable
+    add_executable(pdf_compare_app
+        src/main.cpp
+    )
 
-# Create executable
-add_executable(pdf_compare_app
-    src/main.cpp
-)
+    target_link_libraries(pdf_compare_app
+        PRIVATE
+            pdf_compare
+    ) 
 
-target_link_libraries(pdf_compare_app
-    PRIVATE
-        pdf_compare
-) 
+    # Define export macro
+    target_compile_definitions(pdf_compare PRIVATE PDF_COMPARE_EXPORTS)
+endif()
+
+
+

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>PDF Compare</title>
+    <!-- Load PDF.js from CDNJS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+    <script>
+        // Set the worker source to the correct CDNJS URL
+        window.pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    </script>
+    <style>
+        .diff-image {
+            max-width: 100%;
+            margin: 10px 0;
+            border: 1px dotted #ccc;
+        }
+        #results {
+            margin-top: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div>
+        <h2>PDF Comparison Tool</h2>
+        <div>
+            <label>PDF 1: </label>
+            <input type="file" id="pdf1" accept=".pdf">
+        </div>
+        <div>
+            <label>PDF 2: </label>
+            <input type="file" id="pdf2" accept=".pdf">
+        </div>
+        <button id="compare">Compare PDFs</button>
+    </div>
+    <div id="results"></div>
+
+    <script src="pdf_compare_wasm.js"></script>
+    <script>
+        async function loadPDFPage(pdf, pageNum) {
+            const page = await pdf.getPage(pageNum);
+            const viewport = page.getViewport({scale: 1.0});
+            
+            const canvas = document.createElement('canvas');
+            const context = canvas.getContext('2d');
+            canvas.width = viewport.width;
+            canvas.height = viewport.height;
+            
+            await page.render({
+                canvasContext: context,
+                viewport: viewport
+            }).promise;
+            
+            return {
+                imageData: context.getImageData(0, 0, canvas.width, canvas.height),
+                width: canvas.width,
+                height: canvas.height
+            };
+        }
+
+        async function init() {
+            const pdfCompareModule = await createPDFCompare();
+            console.log('module...', pdfCompareModule);
+            const pdfCompare = new pdfCompareModule.PDFCompare();
+            console.log('pdfCompare...', pdfCompare);
+            const compareBtn = document.getElementById('compare');
+            const resultsDiv = document.getElementById('results');
+
+            compareBtn.addEventListener('click', async () => {
+                const pdf1File = document.getElementById('pdf1').files[0];
+                const pdf2File = document.getElementById('pdf2').files[0];
+
+                if (!pdf1File || !pdf2File) {
+                    alert('Please select both PDF files');
+                    return;
+                }
+
+                try {
+                    // Read PDF files
+                    const pdf1Data = await pdf1File.arrayBuffer();
+                    const pdf2Data = await pdf2File.arrayBuffer();
+
+                    // error if pdf files have different number of pages
+                    const pdf1 = await pdfjsLib.getDocument({data: pdf1Data}).promise;
+                    const pdf2 = await pdfjsLib.getDocument({data: pdf2Data}).promise;
+                    if (pdf1.numPages !== pdf2.numPages) {
+                        alert('PDF files have different number of pages');
+                        return;
+                    }
+
+                    // loop through all pages and compare
+                    for (let i = 1; i <= pdf1.numPages; i++) {
+                        console.log('page...', i);
+                        const page1Data = await loadPDFPage(pdf1, i);
+                        const page2Data = await loadPDFPage(pdf2, i);
+
+                        // Compare pages
+                        const result = pdfCompare.compareImages(
+                            page1Data.imageData.data,
+                            page2Data.imageData.data,
+                            page1Data.width,
+                            page1Data.height);
+
+                        console.log('result...', result);
+
+                        // Display results
+                        let html = `
+                            <h3>Comparison Results:</h3>
+                            <p>Identical: ${result.identical}</p>
+                            <p>Similarity: ${(result.similarity * 100).toFixed(2)}%</p>
+                        `;
+
+                        if (!result.identical) {
+                            // Convert diff image data to canvas
+                            const diffCanvas = document.createElement('canvas');
+                            diffCanvas.width = page1Data.width;
+                            diffCanvas.height = page1Data.height;
+                            const diffContext = diffCanvas.getContext('2d');
+                            const diffImageData = diffContext.createImageData(page1Data.width, page1Data.height);
+                            diffImageData.data.set(result.diffImage);
+                            diffContext.putImageData(diffImageData, 0, 0);
+
+                            html += `
+                                <h4>Differences:</h4>
+                                <img class="diff-image" src="${diffCanvas.toDataURL()}">
+                            `;
+                        }
+                        resultsDiv.innerHTML += html;
+                    }
+
+                    
+                } catch (error) {
+                    resultsDiv.innerHTML = `<p style="color: red">Error: ${error.message}</p>`;
+                    console.error(error);
+                }
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html> 
